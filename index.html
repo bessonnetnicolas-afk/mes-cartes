@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<title>Mes Cartes</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<style>
+/* =====================================================================
+   1. STYLES — couleurs (clair / sombre), mise en page mobile
+   ===================================================================== */
+:root{
+  --bg:#f4f5f2; --card:#ffffff; --text:#1c1f1d; --muted:#6b716d; --line:#e2e4df;
+  --accent:#0f766e; --accent-ink:#ffffff; --warn:#c2410c; --warn-bg:#ffedd5;
+  --danger:#b91c1c; --danger-bg:#fee2e2; --ok:#15803d; --ok-bg:#dcfce7;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#121413; --card:#1c1f1d; --text:#ecefec; --muted:#9aa19c; --line:#2c302d;
+    --accent:#2dd4bf; --accent-ink:#04201d; --warn:#fdba74; --warn-bg:#3b2414;
+    --danger:#fca5a5; --danger-bg:#3a1717; --ok:#86efac; --ok-bg:#12301d;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px}
+body{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;align-items:center;
+  gap:8px;padding:14px 16px 10px}
+header h1{font-size:1.35rem;margin:0;flex:1;font-weight:700;letter-spacing:-.01em}
+.icon-btn{background:none;border:0;color:var(--text);font-size:1.4rem;padding:6px 10px;border-radius:10px}
+.icon-btn:active{background:var(--line)}
+main{padding:0 16px;max-width:640px;margin:0 auto}
+.view{display:none}.view.active{display:block}
+
+/* Bandeau d'alerte expiration */
+.alert{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 14px;
+  margin-bottom:12px;font-size:.92rem;font-weight:500}
+
+/* Liste des cartes */
+.item{display:flex;align-items:stretch;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;margin-bottom:10px;overflow:hidden;cursor:pointer}
+.item .stripe{width:8px;flex:none}
+.item .body{flex:1;padding:12px 14px;min-width:0}
+.item .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.item .name{font-weight:650;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .amount{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.item .sub{display:flex;gap:8px;align-items:center;margin-top:4px;color:var(--muted);font-size:.85rem;flex-wrap:wrap}
+.badge{display:inline-block;font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:999px}
+.b-warn{background:var(--warn-bg);color:var(--warn)}
+.b-danger{background:var(--danger-bg);color:var(--danger)}
+.b-ok{background:var(--ok-bg);color:var(--ok)}
+.b-type{background:var(--line);color:var(--muted)}
+details.archive{margin-top:18px}
+details.archive summary{color:var(--muted);font-weight:600;padding:8px 0;cursor:pointer}
+details.archive .item{opacity:.6}
+.empty{text-align:center;color:var(--muted);padding:60px 20px}
+
+/* Bouton flottant d'ajout */
+.fab{position:fixed;right:20px;bottom:calc(22px + env(safe-area-inset-bottom));width:60px;height:60px;
+  border-radius:18px;border:0;background:var(--accent);color:var(--accent-ink);font-size:2rem;
+  box-shadow:0 6px 18px rgba(0,0,0,.25);z-index:6}
+
+/* Fiche carte */
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.barcode-box{background:#fff;border-radius:12px;padding:14px 10px 8px;text-align:center;cursor:zoom-in}
+.barcode-box svg{width:100%;height:110px;display:block}
+.barcode-box .num{color:#111;font-family:ui-monospace,monospace;font-size:1rem;margin-top:6px;letter-spacing:.06em;word-break:break-all}
+.barcode-box .hint{color:#777;font-size:.75rem;margin-top:2px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .lbl{color:var(--muted);font-size:.9rem}
+.row .val{font-weight:600;text-align:right;word-break:break-all}
+.mono{font-family:ui-monospace,monospace;letter-spacing:.06em}
+.big-amount{font-size:2rem;font-weight:750;font-variant-numeric:tabular-nums}
+.progress{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin:8px 0 4px}
+.progress>div{height:100%;background:var(--accent)}
+.hist{list-style:none;margin:0;padding:0}
+.hist li{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:.92rem}
+.hist li:last-child{border-bottom:0}
+.small-btn{background:none;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:4px 10px;font-size:.85rem}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 14px}
+.btn{flex:1;min-width:120px;border:0;border-radius:12px;padding:13px 14px;font-size:1rem;font-weight:600;
+  background:var(--line);color:var(--text)}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.danger{background:var(--danger-bg);color:var(--danger)}
+.btn:disabled{opacity:.45}
+h2{font-size:1rem;margin:0 0 8px;color:var(--muted);font-weight:600}
+
+/* Formulaire */
+label{display:block;font-size:.88rem;color:var(--muted);margin:12px 0 4px;font-weight:500}
+input,select,textarea{width:100%;font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);
+  border-radius:10px;padding:11px 12px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.check{display:flex;align-items:center;gap:10px;margin:14px 0 4px;color:var(--text);font-size:1rem}
+.check input{width:22px;height:22px;accent-color:var(--accent)}
+.help{font-size:.8rem;color:var(--muted);margin-top:4px}
+
+/* Fenêtres (dialog) */
+dialog{border:0;border-radius:16px;padding:20px;width:min(92vw,420px);background:var(--card);color:var(--text)}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+dialog h3{margin:0 0 6px;font-size:1.15rem}
+dialog .actions{margin:18px 0 0}
+
+/* Code-barres plein écran (pivoté en portrait pour occuper la largeur) */
+#fullscreen{position:fixed;inset:0;background:#fff;z-index:20;display:none;align-items:center;justify-content:center}
+#fullscreen.on{display:flex}
+#fullscreen .inner{width:92vw;text-align:center}
+#fullscreen svg{width:100%;height:auto;max-height:50vh}
+#fullscreen .num{color:#111;font-family:ui-monospace,monospace;font-size:1.3rem;margin-top:10px;letter-spacing:.08em}
+@media (orientation:portrait){ #fullscreen .inner{width:88vh;transform:rotate(90deg)} #fullscreen svg{max-height:60vw} }
+
+/* Notification courte */
+#toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:var(--text);color:var(--bg);
+  padding:10px 16px;border-radius:10px;font-size:.92rem;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30;max-width:90vw}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- =====================================================================
+     2. STRUCTURE HTML — en-tête + 3 vues (liste, fiche, formulaire)
+     ===================================================================== -->
+<header>
+  <button class="icon-btn" id="btnBack" hidden aria-label="Retour">←</button>
+  <h1 id="title">Mes cartes</h1>
+  <button class="icon-btn" id="btnMenu" aria-label="Menu">⋮</button>
+</header>
+
+<main>
+  <section id="vList" class="view active"></section>
+  <section id="vDetail" class="view"></section>
+  <section id="vForm" class="view"></section>
+</main>
+
+<button class="fab" id="fab" aria-label="Ajouter une carte">+</button>
+<div id="fullscreen"><div class="inner"></div></div>
+<div id="toast"></div>
+<dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+
+<script>
+/* =====================================================================
+   3. STOCKAGE LOCAL — toutes les données restent sur le téléphone
+   Structure : { cards:[...], crypto:{salt, check} }
+   Une carte : { id, type, enseigne, numero, barFormat, pin:{iv,ct}|null,
+                 initial:number|null, history:[{date,montant}], expiration:'AAAA-MM-JJ',
+                 utilise:bool, notes }
+   ===================================================================== */
+const KEY = 'mes_cartes_v1';
+let db = loadDb();
+
+function loadDb(){
+  try { return JSON.parse(localStorage.getItem(KEY)) || { cards: [], crypto: null }; }
+  catch(e){ return { cards: [], crypto: null }; }
+}
+function saveDb(){ localStorage.setItem(KEY, JSON.stringify(db)); }
+// Demande au navigateur de ne pas effacer les données en cas de manque d'espace
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+
+/* =====================================================================
+   4. OUTILS — formatage montants/dates, échappement HTML, toast
+   ===================================================================== */
+const fmtEur = n => new Intl.NumberFormat('fr-FR', { style:'currency', currency:'EUR' }).format(n);
+const fmtDate = s => s ? new Date(s + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const parseAmount = v => { const n = parseFloat(String(v).replace(/\s/g,'').replace(',', '.')); return isNaN(n) ? null : Math.round(n*100)/100; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const $ = sel => document.querySelector(sel);
+
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2200);
+}
+// Couleur stable par enseigne (repère visuel dans la liste)
+function colorFor(name){
+  let h = 0; for (const c of (name || '').toLowerCase()) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `hsl(${h} 55% 48%)`;
+}
+
+/* =====================================================================
+   5. CALCULS MÉTIER — solde restant, jours avant expiration, statut
+   ===================================================================== */
+function remaining(card){
+  if (card.initial == null) return null;
+  const used = card.history.reduce((s, h) => s + h.montant, 0);
+  return Math.round((card.initial - used) * 100) / 100;
+}
+function daysLeft(card){
+  if (!card.expiration) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.round((new Date(card.expiration + 'T00:00:00') - today) / 86400000);
+}
+// Renvoie le badge d'expiration à afficher (ou '' si rien à signaler)
+function expiryBadge(card){
+  if (card.utilise) return '<span class="badge b-ok">Utilisée</span>';
+  const d = daysLeft(card);
+  if (d == null) return '';
+  if (d < 0)  return '<span class="badge b-danger">Expirée</span>';
+  if (d === 0) return '<span class="badge b-danger">Expire aujourd\'hui</span>';
+  if (d <= 30) return `<span class="badge b-warn">Expire dans ${d} j</span>`;
+  return '';
+}
+
+/* =====================================================================
+   6. CHIFFREMENT DU PIN — AES-GCM 256 bits, clé dérivée du mot de passe
+   maître (PBKDF2, 250 000 itérations). Le mot de passe n'est jamais stocké :
+   on garde seulement un "témoin" chiffré pour vérifier qu'il est correct.
+   La clé reste en mémoire 5 min puis est oubliée (ou dès que l'appli passe
+   en arrière-plan).
+   ===================================================================== */
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+let sessionKey = null, keyTimer = null;
+
+async function deriveKey(password, salt){
+  const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name:'PBKDF2', salt, iterations:250000, hash:'SHA-256' },
+    base, { name:'AES-GCM', length:256 }, false, ['encrypt', 'decrypt']);
+}
+async function encryptStr(key, str){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, enc.encode(str));
+  return { iv: b64(iv), ct: b64(ct) };
+}
+async function decryptStr(key, obj){
+  const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv: unb64(obj.iv) }, key, unb64(obj.ct));
+  return dec.decode(pt);
+}
+function keepKey(key){
+  sessionKey = key; clearTimeout(keyTimer);
+  keyTimer = setTimeout(() => sessionKey = null, 5 * 60 * 1000);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) sessionKey = null; });
+
+// Création d'un nouveau mot de passe maître (renvoie la clé + l'entrée crypto à stocker)
+async function createMaster(title){
+  const r = await modal({
+    title, okText: 'Valider',
+    html: `<p class="help">Ce mot de passe protège tes codes PIN. <b>S'il est oublié, les PIN sont perdus</b> (aucune récupération possible).</p>
+      <label>Mot de passe</label><input name="p1" type="password" required minlength="4" autocomplete="new-password">
+      <label>Confirmer</label><input name="p2" type="password" required autocomplete="new-password">`
+  });
+  if (!r) return null;
+  if (r.p1 !== r.p2){ toast('Les deux mots de passe ne correspondent pas'); return null; }
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await deriveKey(r.p1, salt);
+  return { key, crypto: { salt: b64(salt), check: await encryptStr(key, 'OK') } };
+}
+
+// Récupère la clé : la crée au 1er usage, sinon demande le mot de passe
+async function getKey(){
+  if (sessionKey) return sessionKey;
+  if (!db.crypto){
+    const m = await createMaster('Créer le mot de passe maître');
+    if (!m) return null;
+    db.crypto = m.crypto; saveDb(); keepKey(m.key); return m.key;
+  }
+  const r = await modal({ title:'Mot de passe maître', okText:'Déverrouiller',
+    html:'<input name="p" type="password" required autocomplete="current-password" autofocus>' });
+  if (!r) return null;
+  const key = await deriveKey(r.p, unb64(db.crypto.salt));
+  try { await decryptStr(key, db.crypto.check); keepKey(key); return key; }
+  catch(e){ toast('Mot de passe incorrect'); return null; }
+}
+
+// Changement du mot de passe maître : déchiffre puis rechiffre tous les PIN
+async function changeMaster(){
+  if (!db.crypto){ toast('Aucun mot de passe défini pour l\'instant'); return; }
+  sessionKey = null;
+  const oldKey = await getKey(); if (!oldKey) return;
+  const m = await createMaster('Nouveau mot de passe maître'); if (!m) return;
+  for (const c of db.cards){
+    if (c.pin) c.pin = await encryptStr(m.key, await decryptStr(oldKey, c.pin));
+  }
+  db.crypto = m.crypto; saveDb(); keepKey(m.key); toast('Mot de passe modifié');
+}
+
+/* =====================================================================
+   7. CODES-BARRES — générés en SVG, sans bibliothèque (fonctionne hors ligne)
+   - EAN-13 si le numéro fait 13 chiffres avec une clé de contrôle valide
+   - Code 128 sinon (jeu C pour les numéros tout en chiffres = plus compact)
+   ===================================================================== */
+// @@BARCODE_START
+const C128 = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213',
+'221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212',
+'223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323',
+'131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123',
+'113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113',
+'312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214',
+'112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142',
+'121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341',
+'131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'];
+
+// Convertit une suite de largeurs ("212222") en modules "1"=barre / "0"=espace
+const widthsToBits = w => [...w].map((n, i) => (i % 2 ? '0' : '1').repeat(+n)).join('');
+
+function encodeCode128(txt){
+  const codes = [];
+  if (/^\d{4,}$/.test(txt)){                     // Que des chiffres → jeu C (2 chiffres par symbole)
+    let i = 0;
+    if (txt.length % 2){ codes.push(104, txt.charCodeAt(0) - 32, 99); i = 1; } // impair : 1er chiffre en B puis bascule en C
+    else codes.push(105);
+    for (; i < txt.length; i += 2) codes.push(parseInt(txt.substr(i, 2), 10));
+  } else {                                       // Texte → jeu B
+    codes.push(104);
+    for (const ch of txt){
+      const c = ch.charCodeAt(0);
+      if (c < 32 || c > 126) throw new Error('Caractère non supporté : ' + ch);
+      codes.push(c - 32);
+    }
+  }
+  let sum = codes[0];                            // Clé de contrôle modulo 103
+  for (let k = 1; k < codes.length; k++) sum += codes[k] * k;
+  codes.push(sum % 103, 106);
+  return codes.map(c => widthsToBits(C128[c])).join('');
+}
+
+function ean13Valid(d){
+  if (!/^\d{13}$/.test(d)) return false;
+  const s = [...d.slice(0, 12)].reduce((a, n, i) => a + (+n) * (i % 2 ? 3 : 1), 0);
+  return (10 - s % 10) % 10 === +d[12];
+}
+function encodeEAN13(d){
+  const L = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
+  const G = ['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
+  const R = L.map(p => [...p].map(b => b === '1' ? '0' : '1').join(''));
+  const PAR = ['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+  let bits = '101';
+  for (let i = 1; i <= 6; i++) bits += (PAR[+d[0]][i - 1] === 'L' ? L : G)[+d[i]];
+  bits += '01010';
+  for (let i = 7; i <= 12; i++) bits += R[+d[i]];
+  return bits + '101';
+}
+
+// Choix du format puis rendu SVG (marge blanche de 10 modules de chaque côté)
+function barcodeBits(value, format){
+  const v = String(value || '').replace(/\s/g, '');
+  if (!v || format === 'none') return null;
+  if (format === 'ean13' || (format === 'auto' && ean13Valid(v))){
+    if (!ean13Valid(v)) throw new Error('Numéro EAN-13 invalide');
+    return encodeEAN13(v);
+  }
+  return encodeCode128(v);
+}
+function barcodeSVG(bits){
+  const q = 10, w = bits.length + 2 * q;
+  let rects = '';
+  for (let i = 0; i < bits.length; ){
+    if (bits[i] === '1'){ let j = i; while (bits[j] === '1') j++; rects += `<rect x="${i + q}" y="0" width="${j - i}" height="60"/>`; i = j; }
+    else i++;
+  }
+  return `<svg viewBox="0 0 ${w} 60" preserveAspectRatio="none" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><rect width="${w}" height="60" fill="#fff"/><g fill="#000">${rects}</g></svg>`;
+}
+// @@BARCODE_END
+
+/* =====================================================================
+   8. FENÊTRE GÉNÉRIQUE (dialog) — renvoie les valeurs saisies ou null
+   ===================================================================== */
+function modal({ title, html = '', okText = 'OK', cancelText = 'Annuler', danger = false }){
+  return new Promise(resolve => {
+    const dlg = $('#dlg'), form = $('#dlgForm');
+    form.innerHTML = `<h3>${esc(title)}</h3>${html}
+      <div class="actions">
+        ${cancelText ? `<button class="btn" value="cancel" formnovalidate>${esc(cancelText)}</button>` : ''}
+        <button class="btn ${danger ? 'danger' : 'primary'}" value="ok">${esc(okText)}</button>
+      </div>`;
+    dlg.onclose = () => {
+      if (dlg.returnValue !== 'ok') return resolve(null);
+      resolve(Object.fromEntries(new FormData(form)));
+    };
+    dlg.returnValue = '';
+    dlg.showModal();
+    const first = form.querySelector('input'); if (first) setTimeout(() => first.focus(), 50);
+  });
+}
+const confirmBox = (title, text, okText = 'Confirmer') =>
+  modal({ title, html: `<p>${esc(text)}</p>`, okText, danger: true });
+
+/* =====================================================================
+   9. NAVIGATION — via l'URL (#/carte/id …) pour que le bouton retour
+   d'Android fonctionne naturellement
+   ===================================================================== */
+function go(hash){ location.hash = hash; }
+window.addEventListener('hashchange', route);
+
+function route(){
+  const [, view, id] = location.hash.split('/');
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  $('#fullscreen').classList.remove('on');
+  const isList = !view;
+  $('#btnBack').hidden = isList;
+  $('#fab').style.display = isList ? '' : 'none';
+  if (view === 'carte' && findCard(id)) renderDetail(findCard(id));
+  else if (view === 'edit') renderForm(id ? findCard(id) : null);
+  else { $('#title').textContent = 'Mes cartes'; renderList(); }
+}
+const findCard = id => db.cards.find(c => c.id === id);
+$('#btnBack').onclick = () => history.length > 1 ? history.back() : go('');
+$('#fab').onclick = () => go('#/edit');
+
+/* =====================================================================
+   10. VUE LISTE — actives triées par expiration, archivées repliées
+   ===================================================================== */
+function renderList(){
+  const el = $('#vList'); el.classList.add('active');
+  if (!db.cards.length){
+    el.innerHTML = `<div class="empty"><div style="font-size:3rem">🎁</div>
+      <p>Aucune carte pour l'instant.<br>Appuie sur <b>+</b> pour en ajouter une.</p></div>`;
+    return;
+  }
+  // Tri : sans date d'expiration en dernier
+  const byExp = (a, b) => (a.expiration || '9999') .localeCompare(b.expiration || '9999');
+  const active = db.cards.filter(c => !c.utilise).sort(byExp);
+  const archived = db.cards.filter(c => c.utilise).sort(byExp);
+
+  // Bandeau d'alerte
+  const soon = active.filter(c => { const d = daysLeft(c); return d != null && d >= 0 && d <= 30; }).length;
+  const expired = active.filter(c => { const d = daysLeft(c); return d != null && d < 0; }).length;
+  const msgs = [];
+  if (soon) msgs.push(`${soon} carte${soon > 1 ? 's' : ''} expire${soon > 1 ? 'nt' : ''} dans moins de 30 jours`);
+  if (expired) msgs.push(`${expired} carte${expired > 1 ? 's' : ''} expirée${expired > 1 ? 's' : ''} non utilisée${expired > 1 ? 's' : ''}`);
+
+  const itemHTML = c => {
+    const r = remaining(c);
+    return `<div class="item" data-id="${c.id}">
+      <div class="stripe" style="background:${colorFor(c.enseigne)}"></div>
+      <div class="body">
+        <div class="top"><span class="name">${esc(c.enseigne)}</span>
+          <span class="amount">${r != null ? fmtEur(r) : ''}</span></div>
+        <div class="sub"><span class="badge b-type">${esc(c.type)}</span>
+          ${c.expiration ? `<span>exp. ${fmtDate(c.expiration)}</span>` : ''} ${expiryBadge(c)}</div>
+      </div></div>`;
+  };
+  el.innerHTML = (msgs.length ? `<div class="alert">⚠️ ${msgs.join(' · ')}</div>` : '')
+    + (active.length ? active.map(itemHTML).join('') : '<p class="empty" style="padding:20px">Toutes tes cartes sont utilisées.</p>')
+    + (archived.length ? `<details class="archive"><summary>Archivées (${archived.length})</summary>${archived.map(itemHTML).join('')}</details>` : '');
+  el.querySelectorAll('.item').forEach(n => n.onclick = () => go('#/carte/' + n.dataset.id));
+}
+
+/* =====================================================================
+   11. VUE FICHE — code-barres, numéro, PIN, solde, historique, actions
+   ===================================================================== */
+function renderDetail(c){
+  $('#title').textContent = c.enseigne;
+  const el = $('#vDetail'); el.classList.add('active');
+  const r = remaining(c);
+
+  // Code-barres (ou message d'erreur si le numéro n'est pas encodable)
+  let bc = '';
+  try {
+    const bits = barcodeBits(c.numero, c.barFormat || 'auto');
+    if (bits) bc = `<div class="barcode-box" id="bcBox">${barcodeSVG(bits)}
+      <div class="num">${esc(c.numero)}</div><div class="hint">Toucher pour agrandir</div></div>`;
+  } catch(e){ bc = `<div class="alert">Code-barres impossible : ${esc(e.message)}</div>`; }
+
+  // Bloc solde (seulement si un montant initial est renseigné)
+  const solde = c.initial != null ? `
+    <div class="panel">
+      <h2>Solde restant</h2>
+      <div class="big-amount">${fmtEur(r)}</div>
+      <div class="progress"><div style="width:${Math.max(0, Math.min(100, r / c.initial * 100))}%"></div></div>
+      <div class="help">sur ${fmtEur(c.initial)} initial</div>
+    </div>` : '';
+
+  const hist = c.history.length ? `
+    <div class="panel"><h2>Historique des utilisations</h2><ul class="hist">
+      ${c.history.map((h, i) => ({ h, i })).reverse().map(({ h, i }) => `
+        <li><span>${fmtDate(h.date)}</span><span><b>− ${fmtEur(h.montant)}</b>
+        <button class="small-btn" data-del="${i}" aria-label="Supprimer">✕</button></span></li>`).join('')}
+    </ul></div>` : '';
+
+  el.innerHTML = `
+    ${bc}
+    <div class="panel" style="margin-top:12px">
+      <div class="row"><span class="lbl">Type</span><span class="val">${esc(c.type)}</span></div>
+      <div class="row"><span class="lbl">Numéro</span>
+        <span class="val mono">${esc(c.numero) || '—'} ${c.numero ? '<button class="small-btn" id="btnCopy">Copier</button>' : ''}</span></div>
+      <div class="row"><span class="lbl">Code PIN</span>
+        <span class="val">${c.pin ? '<span class="mono" id="pinVal">••••</span> <button class="small-btn" id="btnPin">Afficher</button>' : '—'}</span></div>
+      <div class="row"><span class="lbl">Expiration</span><span class="val">${fmtDate(c.expiration)} ${expiryBadge(c)}</span></div>
+      ${c.notes ? `<div class="row"><span class="lbl">Notes</span><span class="val" style="font-weight:400">${esc(c.notes)}</span></div>` : ''}
+    </div>
+    ${solde}
+    <div class="actions">
+      ${c.initial != null ? `<button class="btn primary" id="btnUse" ${c.utilise ? 'disabled' : ''}>Utiliser</button>` : ''}
+      <button class="btn" id="btnToggle">${c.utilise ? 'Réactiver' : 'Tout utilisé ✓'}</button>
+    </div>
+    ${hist}
+    <div class="actions">
+      <button class="btn" id="btnEdit">Modifier</button>
+      <button class="btn danger" id="btnDelete">Supprimer</button>
+    </div>`;
+
+  // --- Événements de la fiche ---
+  const bcBox = $('#bcBox'); if (bcBox) bcBox.onclick = () => showFullscreen(c);
+  const bCopy = $('#btnCopy'); if (bCopy) bCopy.onclick = async () => {
+    try { await navigator.clipboard.writeText(c.numero.replace(/\s/g, '')); toast('Numéro copié'); } catch(e){ toast('Copie impossible'); }
+  };
+  const bPin = $('#btnPin'); if (bPin) bPin.onclick = async () => {
+    const key = await getKey(); if (!key) return;
+    try {
+      $('#pinVal').textContent = await decryptStr(key, c.pin);
+      bPin.hidden = true;
+      setTimeout(() => { const p = $('#pinVal'); if (p) { p.textContent = '••••'; bPin.hidden = false; } }, 15000); // re-masqué après 15 s
+    } catch(e){ toast('Impossible de déchiffrer ce PIN'); }
+  };
+  const bUse = $('#btnUse'); if (bUse) bUse.onclick = () => useCard(c);
+  $('#btnToggle').onclick = () => { c.utilise = !c.utilise; saveDb(); renderDetail(c); toast(c.utilise ? 'Carte archivée' : 'Carte réactivée'); };
+  $('#btnEdit').onclick = () => go('#/edit/' + c.id);
+  $('#btnDelete').onclick = async () => {
+    if (!await confirmBox('Supprimer la carte ?', `« ${c.enseigne} » sera définitivement supprimée.`, 'Supprimer')) return;
+    db.cards = db.cards.filter(x => x.id !== c.id); saveDb(); toast('Carte supprimée'); go('');
+  };
+  el.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+    const h = c.history[+b.dataset.del];
+    if (!await confirmBox('Annuler cette utilisation ?', `${fmtEur(h.montant)} du ${fmtDate(h.date)} sera recrédité.`, 'Annuler l\'utilisation')) return;
+    c.history.splice(+b.dataset.del, 1);
+    if (remaining(c) > 0) c.utilise = false;
+    saveDb(); renderDetail(c);
+  });
+}
+
+// Enregistre une dépense sur la carte ; archive automatiquement à 0 €
+async function useCard(c){
+  const r = remaining(c);
+  const today = new Date().toISOString().slice(0, 10);
+  const res = await modal({ title: 'Utiliser la carte', okText: 'Enregistrer',
+    html: `<p class="help">Solde actuel : <b>${fmtEur(r)}</b></p>
+      <label>Montant dépensé (€)</label><input name="m" inputmode="decimal" required placeholder="ex : 12,50">
+      <label>Date</label><input name="d" type="date" value="${today}" required>` });
+  if (!res) return;
+  let m = parseAmount(res.m);
+  if (!m || m <= 0){ toast('Montant invalide'); return; }
+  if (m > r){
+    if (!await confirmBox('Montant supérieur au solde', `Le solde n'est que de ${fmtEur(r)}. Enregistrer ${fmtEur(r)} (solde vidé) ?`, 'Oui')) return;
+    m = r;
+  }
+  c.history.push({ date: res.d, montant: m });
+  if (remaining(c) <= 0){ c.utilise = true; toast('Solde épuisé : carte archivée'); }
+  else toast(`Nouveau solde : ${fmtEur(remaining(c))}`);
+  saveDb(); renderDetail(c);
+}
+
+// Code-barres plein écran (écran maintenu allumé si possible)
+let wakeLock = null;
+async function showFullscreen(c){
+  const fs = $('#fullscreen');
+  fs.querySelector('.inner').innerHTML = barcodeSVG(barcodeBits(c.numero, c.barFormat || 'auto'))
+    + `<div class="num">${esc(c.numero)}</div>`;
+  fs.classList.add('on');
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch(e){}
+  fs.onclick = () => { fs.classList.remove('on'); wakeLock?.release(); wakeLock = null; };
+}
+
+/* =====================================================================
+   12. VUE FORMULAIRE — ajout / modification d'une carte
+   ===================================================================== */
+function renderForm(c){
+  const isNew = !c;
+  c = c || { type:'Carte cadeau', enseigne:'', numero:'', barFormat:'auto', pin:null, initial:null, history:[], expiration:'', utilise:false, notes:'' };
+  $('#title').textContent = isNew ? 'Nouvelle carte' : 'Modifier';
+  const el = $('#vForm'); el.classList.add('active');
+  const opt = (v, cur) => `<option ${v === cur ? 'selected' : ''}>${v}</option>`;
+
+  el.innerHTML = `<form id="cardForm" autocomplete="off">
+    <label>Type</label>
+    <select name="type">${['Carte cadeau', 'Bon cadeau', 'Carte fidélité'].map(t => opt(t, c.type)).join('')}</select>
+    <label>Enseigne *</label><input name="enseigne" required value="${esc(c.enseigne)}" placeholder="ex : Fnac">
+    <label>Numéro de carte</label><input name="numero" value="${esc(c.numero)}" placeholder="ex : 6034 1234 5678 9012">
+    <label>Format du code-barres</label>
+    <select name="barFormat">
+      <option value="auto" ${c.barFormat === 'auto' ? 'selected' : ''}>Automatique</option>
+      <option value="code128" ${c.barFormat === 'code128' ? 'selected' : ''}>Code 128</option>
+      <option value="ean13" ${c.barFormat === 'ean13' ? 'selected' : ''}>EAN-13</option>
+      <option value="none" ${c.barFormat === 'none' ? 'selected' : ''}>Pas de code-barres</option>
+    </select>
+    <label>Code PIN</label>
+    <input name="pin" type="password" placeholder="${c.pin ? 'Laisser vide pour conserver le PIN actuel' : 'Facultatif'}" autocomplete="new-password">
+    ${c.pin ? '<label class="check"><input type="checkbox" name="pinDel"> Supprimer le PIN existant</label>' : ''}
+    <div class="help">Chiffré avec ton mot de passe maître.</div>
+    <label>Montant initial (€)</label>
+    <input name="initial" inputmode="decimal" value="${c.initial != null ? String(c.initial).replace('.', ',') : ''}" placeholder="Vide pour une carte fidélité">
+    <label>Date d'expiration</label><input name="expiration" type="date" value="${c.expiration}">
+    <label>Notes</label><textarea name="notes" rows="2">${esc(c.notes)}</textarea>
+    <label class="check"><input type="checkbox" name="utilise" ${c.utilise ? 'checked' : ''}> Tout utilisé</label>
+    <div class="actions" style="margin-top:18px">
+      <button type="button" class="btn" id="btnCancel">Annuler</button>
+      <button class="btn primary">Enregistrer</button>
+    </div></form>`;
+
+  $('#btnCancel').onclick = () => history.back();
+  $('#cardForm').onsubmit = async e => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.target));
+    const initial = f.initial.trim() ? parseAmount(f.initial) : null;
+    if (f.initial.trim() && initial == null){ toast('Montant initial invalide'); return; }
+
+    // Vérifie que le numéro est encodable avant d'enregistrer
+    try { barcodeBits(f.numero, f.barFormat); } catch(err){ toast(err.message); return; }
+
+    // Gestion du PIN : nouveau → chiffré ; case cochée → supprimé ; sinon inchangé
+    let pin = c.pin;
+    if (f.pinDel) pin = null;
+    if (f.pin){
+      const key = await getKey(); if (!key) { toast('PIN non enregistré'); return; }
+      pin = await encryptStr(key, f.pin);
+    }
+    const data = { type:f.type, enseigne:f.enseigne.trim(), numero:f.numero.trim(), barFormat:f.barFormat,
+      pin, initial, expiration:f.expiration, notes:f.notes.trim(), utilise:!!f.utilise };
+
+    if (isNew){
+      const card = { id: uid(), history: [], ...data };
+      db.cards.push(card); saveDb();
+      history.replaceState(null, '', '#/carte/' + card.id); route();
+    } else {
+      Object.assign(c, data); saveDb(); history.back();
+    }
+    toast('Carte enregistrée');
+  };
+}
+
+/* =====================================================================
+   13. MENU — sauvegarde (export / import) et mot de passe maître
+   ===================================================================== */
+$('#btnMenu').onclick = async () => {
+  const r = await modal({ title: 'Menu', okText: 'Fermer', cancelText: '',
+    html: `<div class="actions" style="flex-direction:column">
+      <button type="button" class="btn" data-a="export">⬇️ Exporter une sauvegarde</button>
+      <button type="button" class="btn" data-a="import">⬆️ Restaurer une sauvegarde</button>
+      <button type="button" class="btn" data-a="pwd">🔑 Changer le mot de passe maître</button>
+    </div><p class="help">${db.cards.length} carte(s) · données stockées uniquement sur ce téléphone.</p>` });
+};
+// Délégation : les boutons du menu sont créés dynamiquement dans la fenêtre
+$('#dlgForm').addEventListener('click', e => {
+  const a = e.target.dataset?.a; if (!a) return;
+  $('#dlg').close();
+  if (a === 'export') exportData();
+  if (a === 'import') $('#importFile').click();
+  if (a === 'pwd') changeMaster();
+});
+
+function exportData(){
+  const blob = new Blob([JSON.stringify({ app:'mes-cartes', version:1, date:new Date().toISOString(), ...db }, null, 1)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `mes-cartes-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast('Sauvegarde téléchargée (PIN chiffrés)');
+}
+
+$('#importFile').onchange = async e => {
+  const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (data.app !== 'mes-cartes' || !Array.isArray(data.cards)) throw new Error();
+    if (!await confirmBox('Restaurer la sauvegarde ?', `Les ${db.cards.length} carte(s) actuelles seront remplacées par les ${data.cards.length} de la sauvegarde. Le mot de passe maître redevient celui de la sauvegarde.`, 'Restaurer')) return;
+    db = { cards: data.cards, crypto: data.crypto || null }; sessionKey = null;
+    saveDb(); go(''); route(); toast('Sauvegarde restaurée');
+  } catch(err){ toast('Fichier de sauvegarde invalide'); }
+};
+
+/* =====================================================================
+   14. DÉMARRAGE — affichage initial + mode hors ligne (service worker)
+   ===================================================================== */
+route();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
