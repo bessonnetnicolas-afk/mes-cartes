@@ -110,7 +110,10 @@ dialog .actions{margin:18px 0 0}
 #fullscreen .inner{width:92vw;text-align:center}
 #fullscreen svg{width:100%;height:auto;max-height:50vh}
 #fullscreen .num{color:#111;font-family:ui-monospace,monospace;font-size:1.3rem;margin-top:10px;letter-spacing:.08em}
-@media (orientation:portrait){ #fullscreen .inner{width:88vh;transform:rotate(90deg)} #fullscreen svg{max-height:60vw} }
+@media (orientation:portrait){ #fullscreen:not(.is-qr) .inner{width:88vh;transform:rotate(90deg)} #fullscreen:not(.is-qr) svg{max-height:60vw} }
+/* QR Code : toujours carré */
+.barcode-box svg.qr{width:220px;height:220px;margin:0 auto}
+#fullscreen svg.qr{width:min(85vw,85vh);height:min(85vw,85vh);max-height:none;margin:0 auto}
 
 /* Notification courte */
 #toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:var(--text);color:var(--bg);
@@ -141,6 +144,7 @@ dialog .actions{margin:18px 0 0}
 <dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
 <input type="file" id="importFile" accept="application/json,.json" hidden>
 
+<script src="qrcode.js"></script><!-- générateur de QR Code (Kazuhiko Arase, licence MIT) -->
 <script>
 /* =====================================================================
    3. STOCKAGE LOCAL — toutes les données restent sur le téléphone
@@ -357,6 +361,28 @@ function barcodeSVG(bits){
 }
 // @@BARCODE_END
 
+/* --- QR Code : généré par la bibliothèque qrcode.js (fichier local, donc hors ligne) ---
+   Le contenu encodé est le texte exact saisi (ex : "RSL96Z2LL"), correction d'erreur niveau M */
+function qrSVG(value){
+  const qr = qrcode(0, 'M');                     // 0 = taille choisie automatiquement
+  qr.addData(value); qr.make();
+  const n = qr.getModuleCount(), q = 4, w = n + 2 * q; // marge blanche de 4 modules (norme)
+  let path = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++)
+    if (qr.isDark(r, c)) path += `M${c + q} ${r + q}h1v1h-1z`;
+  return `<svg class="qr" viewBox="0 0 ${w} ${w}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><rect width="${w}" height="${w}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
+}
+
+// Point d'entrée unique : renvoie le SVG à afficher (code-barres ou QR), ou null si rien
+function renderCode(value, format){
+  if (format === 'qr'){
+    const v = String(value || '').trim();
+    return v ? qrSVG(v) : null;
+  }
+  const bits = barcodeBits(value, format);
+  return bits ? barcodeSVG(bits) : null;
+}
+
 /* =====================================================================
    8. FENÊTRE GÉNÉRIQUE (dialog) — renvoie les valeurs saisies ou null
    ===================================================================== */
@@ -452,8 +478,8 @@ function renderDetail(c){
   // Code-barres (ou message d'erreur si le numéro n'est pas encodable)
   let bc = '';
   try {
-    const bits = barcodeBits(c.numero, c.barFormat || 'auto');
-    if (bits) bc = `<div class="barcode-box" id="bcBox">${barcodeSVG(bits)}
+    const svg = renderCode(c.numero, c.barFormat || 'auto');
+    if (svg) bc = `<div class="barcode-box" id="bcBox">${svg}
       <div class="num">${esc(c.numero)}</div><div class="hint">Toucher pour agrandir</div></div>`;
   } catch(e){ bc = `<div class="alert">Code-barres impossible : ${esc(e.message)}</div>`; }
 
@@ -549,8 +575,9 @@ async function useCard(c){
 let wakeLock = null;
 async function showFullscreen(c){
   const fs = $('#fullscreen');
-  fs.querySelector('.inner').innerHTML = barcodeSVG(barcodeBits(c.numero, c.barFormat || 'auto'))
+  fs.querySelector('.inner').innerHTML = renderCode(c.numero, c.barFormat || 'auto')
     + `<div class="num">${esc(c.numero)}</div>`;
+  fs.classList.toggle('is-qr', c.barFormat === 'qr');   // un QR n'a pas besoin d'être pivoté
   fs.classList.add('on');
   try { wakeLock = await navigator.wakeLock?.request('screen'); } catch(e){}
   fs.onclick = () => { fs.classList.remove('on'); wakeLock?.release(); wakeLock = null; };
@@ -576,6 +603,7 @@ function renderForm(c){
       <option value="auto" ${c.barFormat === 'auto' ? 'selected' : ''}>Automatique</option>
       <option value="code128" ${c.barFormat === 'code128' ? 'selected' : ''}>Code 128</option>
       <option value="ean13" ${c.barFormat === 'ean13' ? 'selected' : ''}>EAN-13</option>
+      <option value="qr" ${c.barFormat === 'qr' ? 'selected' : ''}>QR Code</option>
       <option value="none" ${c.barFormat === 'none' ? 'selected' : ''}>Pas de code-barres</option>
     </select>
     <label>Code PIN</label>
@@ -600,7 +628,7 @@ function renderForm(c){
     if (f.initial.trim() && initial == null){ toast('Montant initial invalide'); return; }
 
     // Vérifie que le numéro est encodable avant d'enregistrer
-    try { barcodeBits(f.numero, f.barFormat); } catch(err){ toast(err.message); return; }
+    try { renderCode(f.numero, f.barFormat); } catch(err){ toast(err.message); return; }
 
     // Gestion du PIN : nouveau → chiffré ; case cochée → supprimé ; sinon inchangé
     let pin = c.pin;

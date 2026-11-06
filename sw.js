@@ -3,8 +3,8 @@
    ⚠️ Après chaque modification des fichiers, incrémente CACHE (v2, v3…)
    pour que le téléphone récupère la nouvelle version.
    ===================================================================== */
-const CACHE = 'mes-cartes-v1';
-const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE = 'mes-cartes-v2';
+const FILES = ['./', './index.html', './qrcode.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 // Installation : copie des fichiers dans le cache
 self.addEventListener('install', e => {
