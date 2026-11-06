@@ -34,5 +34,5 @@ Les données restent uniquement sur ton téléphone. GitHub sert seulement à t�
 - **QR Code** : choisis « QR Code » dans « Format du code-barres » et saisis le texte imprimé sous le QR.
 - **Code-barres** : automatique (EAN-13 si 13 chiffres valides, sinon Code 128). Si une caisse ne lit pas,
   essaie de forcer l'autre format dans « Modifier », et monte la luminosité.
-- **Mettre à jour l'appli** : remplace les fichiers sur GitHub ET passe `CACHE = 'mes-cartes-v1'` à `v2` dans `sw.js`.
+- **Mettre à jour l'appli** : remplace les fichiers sur GitHub ET augmente le numéro de `CACHE` (ex. v3 → v4) dans `sw.js`.
   Rouvre l'appli deux fois pour que la nouvelle version s'affiche.

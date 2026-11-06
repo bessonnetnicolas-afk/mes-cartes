@@ -39,6 +39,18 @@ main{padding:0 16px;max-width:640px;margin:0 auto}
 .alert{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 14px;
   margin-bottom:12px;font-size:.92rem;font-weight:500}
 
+/* Onglets par type (Cadeaux / Fidélité / Tout) */
+.tabs{display:flex;background:var(--line);border-radius:12px;padding:4px;gap:4px;margin-bottom:10px}
+.tab{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-weight:600;padding:9px 6px;border-radius:9px}
+.tab span{font-size:.78rem;opacity:.75;margin-left:2px}
+.tab.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+/* Pastilles d'enseignes (défilement horizontal) */
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;margin-bottom:4px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:.88rem;
+  padding:6px 14px;border-radius:999px;white-space:nowrap}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+
 /* Liste des cartes */
 .item{display:flex;align-items:stretch;background:var(--card);border:1px solid var(--line);
   border-radius:14px;margin-bottom:10px;overflow:hidden;cursor:pointer}
@@ -438,14 +450,37 @@ function renderList(){
       <p>Aucune carte pour l'instant.<br>Appuie sur <b>+</b> pour en ajouter une.</p></div>`;
     return;
   }
+  // --- Filtre 1 : onglet par type (un clic) ---
+  const inTab = c => filt.tab === 'tout' || TABS[filt.tab].types.includes(c.type);
+  const tabCards = db.cards.filter(inTab);
+
+  // --- Filtre 2 : enseignes (plusieurs possibles), regroupées sans tenir compte des majuscules ---
+  const brandKey = c => c.enseigne.trim().toLowerCase();
+  const brands = new Map();                          // clé → nom affiché
+  tabCards.forEach(c => { if (!brands.has(brandKey(c))) brands.set(brandKey(c), c.enseigne.trim()); });
+  [...filt.brands].forEach(k => { if (!brands.has(k)) filt.brands.delete(k); }); // enseigne disparue → retirée du filtre
+  const shown = tabCards.filter(c => !filt.brands.size || filt.brands.has(brandKey(c)));
+
   // Tri : sans date d'expiration en dernier
   const byExp = (a, b) => (a.expiration || '9999') .localeCompare(b.expiration || '9999');
-  const active = db.cards.filter(c => !c.utilise).sort(byExp);
-  const archived = db.cards.filter(c => c.utilise).sort(byExp);
+  const active = shown.filter(c => !c.utilise).sort(byExp);
+  const archived = shown.filter(c => c.utilise).sort(byExp);
 
-  // Bandeau d'alerte
-  const soon = active.filter(c => { const d = daysLeft(c); return d != null && d >= 0 && d <= 30; }).length;
-  const expired = active.filter(c => { const d = daysLeft(c); return d != null && d < 0; }).length;
+  // HTML des onglets (avec le nombre de cartes non utilisées) et des pastilles d'enseigne
+  const tabsHTML = `<div class="tabs">${Object.entries(TABS).map(([k, t]) => {
+      const n = db.cards.filter(c => !c.utilise && (k === 'tout' || t.types.includes(c.type))).length;
+      return `<button class="tab ${filt.tab === k ? 'on' : ''}" data-tab="${k}">${t.label} <span>${n}</span></button>`;
+    }).join('')}</div>`;
+  const chipsHTML = brands.size > 1 ? `<div class="chips">
+      <button class="chip ${filt.brands.size ? '' : 'on'}" data-brand="">Toutes</button>
+      ${[...brands].sort((a, b) => a[1].localeCompare(b[1], 'fr')).map(([k, name]) =>
+        `<button class="chip ${filt.brands.has(k) ? 'on' : ''}" data-brand="${esc(k)}">${esc(name)}</button>`).join('')}
+    </div>` : '';
+
+  // Bandeau d'alerte : calculé sur TOUTES les cartes pour ne rien rater, quel que soit le filtre
+  const allActive = db.cards.filter(c => !c.utilise);
+  const soon = allActive.filter(c => { const d = daysLeft(c); return d != null && d >= 0 && d <= 30; }).length;
+  const expired = allActive.filter(c => { const d = daysLeft(c); return d != null && d < 0; }).length;
   const msgs = [];
   if (soon) msgs.push(`${soon} carte${soon > 1 ? 's' : ''} expire${soon > 1 ? 'nt' : ''} dans moins de 30 jours`);
   if (expired) msgs.push(`${expired} carte${expired > 1 ? 's' : ''} expirée${expired > 1 ? 's' : ''} non utilisée${expired > 1 ? 's' : ''}`);
@@ -461,11 +496,36 @@ function renderList(){
           ${c.expiration ? `<span>exp. ${fmtDate(c.expiration)}</span>` : ''} ${expiryBadge(c)}</div>
       </div></div>`;
   };
+  const emptyMsg = !shown.length ? 'Aucune carte dans cette catégorie.' : 'Toutes ces cartes sont utilisées.';
   el.innerHTML = (msgs.length ? `<div class="alert">⚠️ ${msgs.join(' · ')}</div>` : '')
-    + (active.length ? active.map(itemHTML).join('') : '<p class="empty" style="padding:20px">Toutes tes cartes sont utilisées.</p>')
+    + tabsHTML + chipsHTML
+    + (active.length ? active.map(itemHTML).join('') : `<p class="empty" style="padding:20px">${emptyMsg}</p>`)
     + (archived.length ? `<details class="archive"><summary>Archivées (${archived.length})</summary>${archived.map(itemHTML).join('')}</details>` : '');
+
+  // --- Événements : cartes, onglets, pastilles ---
   el.querySelectorAll('.item').forEach(n => n.onclick = () => go('#/carte/' + n.dataset.id));
+  el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+    filt.tab = b.dataset.tab; filt.brands.clear();
+    try { localStorage.setItem('mes_cartes_onglet', filt.tab); } catch(e){}  // onglet retenu à la prochaine ouverture
+    renderList();
+  });
+  el.querySelectorAll('[data-brand]').forEach(b => b.onclick = () => {
+    const k = b.dataset.brand;
+    if (!k) filt.brands.clear();                      // "Toutes" = on enlève le filtre
+    else filt.brands.has(k) ? filt.brands.delete(k) : filt.brands.add(k);
+    renderList();
+  });
 }
+
+// Définition des onglets et état courant des filtres
+const TABS = {
+  cadeau:   { label: 'Cadeaux',  types: ['Carte cadeau', 'Bon cadeau'] },
+  fidelite: { label: 'Fidélité', types: ['Carte fidélité'] },
+  tout:     { label: 'Tout',     types: [] }
+};
+const filt = { tab: (() => { try { return localStorage.getItem('mes_cartes_onglet') || 'cadeau'; } catch(e){ return 'cadeau'; } })(),
+               brands: new Set() };
+if (!TABS[filt.tab]) filt.tab = 'cadeau';
 
 /* =====================================================================
    11. VUE FICHE — code-barres, numéro, PIN, solde, historique, actions
